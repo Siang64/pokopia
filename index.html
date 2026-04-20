@@ -19,7 +19,7 @@
 <script type="text/babel">
 const{useState,useEffect,useMemo,useCallback}=React;
 const INIT_PK=RAW.p.map(p=>({name:p.n,id:p.i||0,env:p.e||'',flavor:p.f||'',skills:p.s||[],prefs:p.p||[],product:p.pr||'',other:p.ot||''}));
-const ALL_FURN=RAW.f.map(f=>({name:f.n,label:f.l||'',tags:f.t||[]}));
+const INIT_FURN=RAW.f.map(f=>({name:f.n,label:f.l||'',tags:f.t||[]}));
 const AREAS=['空空鎮','荒野','山地','海邊','空島'];
 const ENVS=['明亮','溫暖','潮濕','昏暗','乾燥','涼爽'];
 const FLAVORS=['甜甜的-豆子/葉子/桃桃果','酸酸的-番茄/利木果','辣辣的-胡蘿蔔','苦苦的-馬鈴薯/海帶/莓莓果','澀澀的-小麥/蘑菇/零餘果'];
@@ -207,10 +207,42 @@ function RoomCard({num,mem,area,rf,onRm,onFurn,onAdd,onDel,onSetF,onDetail,ap,on
   </div>)
 }
 
-function FurnPanel({rn,pn,cf,onClose,onSetF,ap}){
+/* ── Furniture Form ── */
+function FurnForm({onClose,onSave,allFurn,editFn}){
+  const ie=!!editFn;
+  const[name,setName]=useState(editFn?.name||'');
+  const[label,setLabel]=useState(editFn?.label||'裝飾');
+  const[tags,setTags]=useState(editFn?.tags?[...editFn.tags]:[]);
+  const[err,setErr]=useState('');
+  const tog=v=>setTags(p=>p.includes(v)?p.filter(x=>x!==v):[...p,v]);
+  const save=()=>{const t=name.trim();if(!t){setErr('請輸入名稱');return}
+    if(!ie&&allFurn.some(f=>f.name===t)){setErr('名稱已存在');return}
+    if(ie&&t!==editFn.name&&allFurn.some(f=>f.name===t)){setErr('名稱已存在');return}
+    onSave({name:t,label,tags:[...tags]},ie?editFn.name:null);onClose()};
+  return(
+    <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.45)',zIndex:1100,display:'flex',alignItems:'center',justifyContent:'center',padding:12}} onClick={onClose}>
+      <div onClick={e=>e.stopPropagation()} style={{background:'#fff',borderRadius:18,maxWidth:520,width:'100%',maxHeight:'90vh',overflow:'hidden',display:'flex',flexDirection:'column',boxShadow:'0 20px 60px rgba(0,0,0,.3)'}}>
+        <div style={{padding:'16px 20px',borderBottom:'1px solid #eee',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+          <h3 style={{margin:0,fontSize:16}}>{ie?'✏️ 編輯':'🪑 新增'} 家具</h3>
+          <button onClick={onClose} style={{background:'none',border:'none',fontSize:18,cursor:'pointer'}}>✕</button></div>
+        <div style={{flex:1,overflow:'auto',padding:'16px 20px'}}>
+          <div style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:'#555',marginBottom:4}}>名稱 *</div>
+            <input value={name} onChange={e=>{setName(e.target.value);setErr('')}} style={{width:'100%',padding:'8px 12px',borderRadius:8,border:'1px solid #ddd',fontSize:14,outline:'none',boxSizing:'border-box'}}/></div>
+          {err&&<div style={{color:'#ef4444',fontSize:12,marginBottom:8}}>{err}</div>}
+          <div style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:'#555',marginBottom:4}}>類別</div>
+            <div style={{display:'flex',gap:6}}>{['裝飾','休憩','玩具'].map(l=><button key={l} onClick={()=>setLabel(l)} style={{background:label===l?'#4338CA':'#f3f4f6',color:label===l?'#fff':'#333',border:'none',borderRadius:8,padding:'6px 16px',cursor:'pointer',fontWeight:600,fontSize:13}}>{l}</button>)}</div></div>
+          <div style={{marginBottom:12}}><div style={{fontSize:12,fontWeight:700,color:'#555',marginBottom:4}}>標籤 ({tags.length})</div>
+            <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>{ALLP.map(t=><button key={t} onClick={()=>tog(t)} style={{background:tags.includes(t)?'#F0FDF4':'#f9fafb',border:tags.includes(t)?'1.5px solid #22c55e':'1.5px solid #e5e7eb',borderRadius:6,padding:'2px 8px',fontSize:11,fontWeight:tags.includes(t)?700:400,cursor:'pointer',color:tags.includes(t)?'#166534':'#888'}}>{t}</button>)}</div></div>
+        </div>
+        <div style={{padding:'12px 20px',borderTop:'1px solid #eee',display:'flex',gap:8,justifyContent:'flex-end'}}>
+          <button onClick={onClose} style={{background:'#f3f4f6',border:'none',borderRadius:8,padding:'8px 20px',fontSize:13,cursor:'pointer'}}>取消</button>
+          <button onClick={save} style={{background:'#4f46e5',color:'#fff',border:'none',borderRadius:8,padding:'8px 20px',fontSize:13,fontWeight:600,cursor:'pointer'}}>{ie?'💾 儲存':'🪑 新增'}</button></div></div></div>)
+}
+
+function FurnPanel({rn,pn,cf,onClose,onSetF,ap,allFurn}){
   const[tab,setTab]=useState('全部');const[search,setSearch]=useState('');
   const rp=useMemo(()=>{const s=new Set();pn.forEach(n=>{const p=fp(n,ap);if(p)p.prefs.forEach(t=>s.add(t))});return s},[pn,ap]);
-  const all=useMemo(()=>{let l=ALL_FURN;if(tab!=='全部')l=l.filter(f=>f.label===tab);if(search)l=l.filter(f=>f.name.includes(search)||f.tags.some(t=>t.includes(search)));return l.map(f=>{const m=f.tags.filter(t=>rp.has(t));return{...f,mc:m.length}}).sort((a,b)=>b.mc-a.mc)},[tab,search,rp]);
+  const all=useMemo(()=>{let l=allFurn;if(tab!=='全部')l=l.filter(f=>f.label===tab);if(search)l=l.filter(f=>f.name.includes(search)||f.tags.some(t=>t.includes(search)));return l.map(f=>{const m=f.tags.filter(t=>rp.has(t));return{...f,mc:m.length}}).sort((a,b)=>b.mc-a.mc)},[tab,search,rp,allFurn]);
   const add=n=>{if(!cf.includes(n))onSetF([...cf,n])};
   return(<div style={{position:'fixed',top:0,right:0,bottom:0,width:Math.min(460,window.innerWidth*.93),background:'#fff',boxShadow:'-4px 0 30px rgba(0,0,0,.15)',zIndex:1000,display:'flex',flexDirection:'column'}}>
     <div style={{padding:'14px 18px',borderBottom:'1px solid #eee',display:'flex',justifyContent:'space-between',alignItems:'center'}}><h3 style={{margin:0,fontSize:15}}>🪑 房間 {rn}</h3><button onClick={onClose} style={{background:'none',border:'none',fontSize:18,cursor:'pointer'}}>✕</button></div>
@@ -279,24 +311,25 @@ function Picker({cr,rn,area,onSel,onClose,ap,rooms}){
           </div>)})}</div></div></div></div>)
 }
 
-function FurnOverview({fd}){
+function FurnOverview({fd,allFurn,onCreateFurn}){
   const[search,setSearch]=useState('');const[tab,setTab]=useState('全部');const[tagF,setTagF]=useState('');
   const usage=useMemo(()=>{const c={};Object.values(fd||{}).forEach(af=>{Object.values(af).forEach(rl=>{(rl||[]).forEach(fn=>{c[fn]=(c[fn]||0)+1})})});return c},[fd]);
   const placements=useMemo(()=>{const p={};Object.entries(fd||{}).forEach(([area,af])=>{Object.entries(af).forEach(([rn,rl])=>{(rl||[]).forEach(fn=>{if(!p[fn])p[fn]=[];p[fn].push({area,rn})})})});return p},[fd]);
-  const allTags=useMemo(()=>{const s=new Set();ALL_FURN.forEach(f=>f.tags.forEach(t=>s.add(t)));return[...s].sort()},[]);
-  const filtered=useMemo(()=>{let l=ALL_FURN;if(tab!=='全部')l=l.filter(f=>f.label===tab);if(search)l=l.filter(f=>f.name.includes(search));if(tagF)l=l.filter(f=>f.tags.includes(tagF));return l},[tab,search,tagF]);
-  const byLabel=useMemo(()=>{const c={裝飾:0,休憩:0,玩具:0};ALL_FURN.forEach(f=>{if(f.label&&c[f.label]!==undefined)c[f.label]++});return c},[]);
+  const allTags=useMemo(()=>{const s=new Set();allFurn.forEach(f=>f.tags.forEach(t=>s.add(t)));return[...s].sort()},[allFurn]);
+  const filtered=useMemo(()=>{let l=allFurn;if(tab!=='全部')l=l.filter(f=>f.label===tab);if(search)l=l.filter(f=>f.name.includes(search));if(tagF)l=l.filter(f=>f.tags.includes(tagF));return l},[tab,search,tagF,allFurn]);
+  const byLabel=useMemo(()=>{const c={裝飾:0,休憩:0,玩具:0};allFurn.forEach(f=>{if(f.label&&c[f.label]!==undefined)c[f.label]++});return c},[allFurn]);
   const tu=Object.keys(usage).length;const tp=Object.values(usage).reduce((a,b)=>a+b,0);
   return(<div style={{padding:'0 20px 40px'}}>
     <div style={{display:'flex',gap:10,flexWrap:'wrap',marginBottom:16}}>
-      <div style={{background:'#fff',borderRadius:12,padding:'12px 20px',border:'1px solid #e5e7eb',textAlign:'center',minWidth:80}}><div style={{fontSize:22,fontWeight:800,color:'#4f46e5'}}>{ALL_FURN.length}</div><div style={{fontSize:11,color:'#888'}}>全部家具</div></div>
+      <div style={{background:'#fff',borderRadius:12,padding:'12px 20px',border:'1px solid #e5e7eb',textAlign:'center',minWidth:80}}><div style={{fontSize:22,fontWeight:800,color:'#4f46e5'}}>{allFurn.length}</div><div style={{fontSize:11,color:'#888'}}>全部家具</div></div>
       {Object.entries(byLabel).map(([l,c])=><div key={l} style={{background:'#fff',borderRadius:12,padding:'12px 20px',border:'1px solid #e5e7eb',textAlign:'center',minWidth:80}}><div style={{fontSize:22,fontWeight:800,color:'#6366f1'}}>{c}</div><div style={{fontSize:11,color:'#888'}}>{l}</div></div>)}
       <div style={{background:'#fff',borderRadius:12,padding:'12px 20px',border:'1px solid #e5e7eb',textAlign:'center',minWidth:80}}><div style={{fontSize:22,fontWeight:800,color:'#22c55e'}}>{tu}</div><div style={{fontSize:11,color:'#888'}}>已使用種類</div></div>
       <div style={{background:'#fff',borderRadius:12,padding:'12px 20px',border:'1px solid #e5e7eb',textAlign:'center',minWidth:80}}><div style={{fontSize:22,fontWeight:800,color:'#f59e0b'}}>{tp}</div><div style={{fontSize:11,color:'#888'}}>總放置數</div></div></div>
     <div style={{background:'#fff',borderRadius:14,padding:16,border:'1px solid #e5e7eb'}}>
       <div style={{display:'flex',gap:6,flexWrap:'wrap',marginBottom:12}}>
         <input type="text" placeholder="搜尋..." value={search} onChange={e=>setSearch(e.target.value)} style={{flex:1,minWidth:120,padding:'6px 10px',borderRadius:8,border:'1px solid #ddd',fontSize:13,outline:'none'}}/>
-        <select value={tagF} onChange={e=>setTagF(e.target.value)} style={{padding:'6px 8px',borderRadius:8,border:'1px solid #ddd',fontSize:12}}><option value="">全部標籤</option>{allTags.map(t=><option key={t} value={t}>{t}</option>)}</select></div>
+        <select value={tagF} onChange={e=>setTagF(e.target.value)} style={{padding:'6px 8px',borderRadius:8,border:'1px solid #ddd',fontSize:12}}><option value="">全部標籤</option>{allTags.map(t=><option key={t} value={t}>{t}</option>)}</select>
+        <button onClick={onCreateFurn} style={{background:'#4f46e5',color:'#fff',border:'none',borderRadius:8,padding:'6px 14px',fontSize:12,fontWeight:600,cursor:'pointer'}}>🪑 新增家具</button></div>
       <div style={{display:'flex',gap:6,marginBottom:12}}>{['全部','裝飾','休憩','玩具'].map(t=><button key={t} onClick={()=>setTab(t)} style={{background:tab===t?'#4338CA':'#f3f4f6',color:tab===t?'#fff':'#333',border:'none',borderRadius:8,padding:'5px 14px',cursor:'pointer',fontWeight:600,fontSize:12}}>{t}</button>)}</div>
       <div style={{fontSize:11,color:'#999',marginBottom:8}}>共 {filtered.length} 件</div>
       {filtered.map((f,i)=>{const u=usage[f.name]||0;const pl=placements[f.name]||[];
@@ -367,9 +400,11 @@ function Unassigned({rooms,onDetail,ap}){
 function App(){
   const[page,setPage]=useState('rooms');const[area,setArea]=useState('空空鎮');
   const[allPk,setAllPk]=useState([...INIT_PK]);
+  const[allFurn,setAllFurn]=useState([...INIT_FURN]);
   const[rooms,setRooms]=useState(()=>Object.fromEntries(AREAS.map(a=>[a,{}])));
   const[fd,setFd]=useState({});
   const[fp2,setFp2]=useState(null);const[picker,setPicker]=useState(null);const[detail,setDetail]=useState(null);const[form,setForm]=useState(null);
+  const[furnForm,setFurnForm]=useState(null);
   const[saved,setSaved]=useState(false);const[loaded,setLoaded]=useState(false);
   const[showHelp,setShowHelp]=useState(false);
   const[rs,setRs]=useState('');const[ref,setRef]=useState('');const[rsf,setRsf]=useState('');const[rff,setRff]=useState('');
@@ -377,15 +412,17 @@ function App(){
 
   useEffect(()=>{(async()=>{
     const pk=await store.get('pk');if(pk)setAllPk(pk);
+    const fn=await store.get('furnList');if(fn)setAllFurn(fn);
     const rm=await store.get('rooms');if(rm)setRooms(rm);
-    const fn=await store.get('furn');if(fn)setFd(fn);
+    const fd2=await store.get('furn');if(fd2)setFd(fd2);
     setLoaded(true);
   })()},[]);
 
-  const save=useCallback(async(nPk,nR,nF)=>{
+  const save=useCallback(async(nPk,nR,nF,nFL)=>{
     if(nPk){setAllPk(nPk);await store.set('pk',nPk)}
     if(nR){setRooms(nR);await store.set('rooms',nR)}
     if(nF){setFd(nF);await store.set('furn',nF)}
+    if(nFL){setAllFurn(nFL);await store.set('furnList',nFL)}
     setSaved(true);setTimeout(()=>setSaved(false),1200)
   },[]);
 
@@ -417,9 +454,10 @@ function App(){
   const setRF=useCallback((rn,list)=>{const nf=JSON.parse(JSON.stringify(fd));if(!nf[area])nf[area]={};nf[area][rn]=list;save(null,null,nf)},[fd,area,save]);
   const savePk=useCallback((pk,oldName)=>{let np=[...allPk];if(oldName){np=np.map(p=>p.name===oldName?{...pk}:{...p});if(oldName!==pk.name){const nr=JSON.parse(JSON.stringify(rooms));AREAS.forEach(a=>{const x=nr[a]||{};Object.keys(x).forEach(r=>{x[r]=x[r].map(n=>n===oldName?pk.name:n)})});save(np,nr,null);return}}else np.push({...pk});save(np,null,null)},[allPk,rooms,save]);
   const delPk=useCallback(name=>{const nr=JSON.parse(JSON.stringify(rooms));AREAS.forEach(a=>{const x=nr[a]||{};Object.keys(x).forEach(r=>{x[r]=x[r].filter(n=>n!==name)})});save(allPk.filter(p=>p.name!==name),nr,null)},[allPk,rooms,save]);
-  const doExport=()=>{const d=JSON.stringify({allPk,rooms,fd},null,2);const b=new Blob([d],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='pokopia_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(u)};
-  const doImport=()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.allPk&&d.rooms){save(d.allPk,d.rooms,d.fd||{});alert('匯入成功！')}else alert('格式錯誤')}catch(e){alert('檔案格式錯誤')}};r.readAsText(f)};i.click()};
-  const resetAll=()=>{if(!confirm('全部重置？'))return;save([...INIT_PK],Object.fromEntries(AREAS.map(a=>[a,{}])),{})};
+  const saveFn=useCallback((fn,oldName)=>{let nf=[...allFurn];if(oldName){nf=nf.map(f=>f.name===oldName?{...fn}:f)}else nf.push({...fn});save(null,null,null,nf)},[allFurn,save]);
+  const doExport=()=>{const d=JSON.stringify({allPk,allFurn,rooms,fd},null,2);const b=new Blob([d],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='pokopia_'+new Date().toISOString().slice(0,10)+'.json';a.click();URL.revokeObjectURL(u)};
+  const doImport=()=>{const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{try{const d=JSON.parse(ev.target.result);if(d.allPk&&d.rooms){save(d.allPk,d.rooms,d.fd||{},d.allFurn||[...INIT_FURN]);alert('匯入成功！')}else alert('格式錯誤')}catch(e){alert('檔案格式錯誤')}};r.readAsText(f)};i.click()};
+  const resetAll=()=>{if(!confirm('全部重置？'))return;save([...INIT_PK],Object.fromEntries(AREAS.map(a=>[a,{}])),{},[ ...INIT_FURN])};
   const uc=allPk.length-aa.size;
 
   if(!loaded)return<div style={{padding:40,textAlign:'center',color:'#999'}}>載入中...</div>;
@@ -451,7 +489,7 @@ function App(){
 
       {page==='stats'?<Stats rooms={rooms} fd={fd} ap={allPk}/>
        :page==='unassigned'?<Unassigned rooms={rooms} onDetail={setDetail} ap={allPk}/>
-       :page==='furniture'?<FurnOverview fd={fd}/>
+       :page==='furniture'?<FurnOverview fd={fd} allFurn={allFurn} onCreateFurn={()=>setFurnForm({mode:'create'})}/>
        :<>
         <div style={{display:'flex',background:'#fff',borderBottom:'1px solid #e5e7eb',overflow:'auto',padding:'0 12px'}}>
           {AREAS.map(a=><button key={a} onClick={()=>setArea(a)} style={{padding:'10px 14px',border:'none',background:'transparent',borderBottom:area===a?'3px solid #7c3aed':'3px solid transparent',color:area===a?'#7c3aed':'#888',fontWeight:area===a?700:500,fontSize:13,cursor:'pointer',whiteSpace:'nowrap'}}>{a} ({ac[a]||0})</button>)}</div>
@@ -488,10 +526,11 @@ function App(){
       </>}
 
       {fp2!=null&&<><div onClick={()=>setFp2(null)} style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.3)',zIndex:999}}/>
-        <FurnPanel rn={fp2} pn={ar[fp2]||[]} ap={allPk} cf={(fd[area]||{})[fp2]||[]} onClose={()=>setFp2(null)} onSetF={l=>setRF(fp2,l)}/></>}
+        <FurnPanel rn={fp2} pn={ar[fp2]||[]} ap={allPk} allFurn={allFurn} cf={(fd[area]||{})[fp2]||[]} onClose={()=>setFp2(null)} onSetF={l=>setRF(fp2,l)}/></>}
       {picker!=null&&<Picker cr={ar[picker]||[]} rn={picker} area={area} ap={allPk} rooms={rooms} onSel={n=>addFromPicker(picker,n)} onClose={()=>setPicker(null)}/>}
       {detail&&<PkDetail name={detail} onClose={()=>setDetail(null)} rooms={rooms} onAssign={assign} allPk={allPk} onDelete={delPk} onEdit={pk=>{setForm({mode:'edit',pk})}}/>}
       {form&&<PkForm onClose={()=>setForm(null)} onSave={savePk} allPk={allPk} editPk={form.mode==='edit'?form.pk:null}/>}
+      {furnForm&&<FurnForm onClose={()=>setFurnForm(null)} onSave={saveFn} allFurn={allFurn} editFn={furnForm.mode==='edit'?furnForm.fn:null}/>}
     </div>)
 }
 ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
